@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>人生副本 — 异世界冒险日记</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏰</text></svg>">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F0E6D6; font-family: "Hiragino Sans", "PingFang SC", "Noto Sans SC", -apple-system, sans-serif; }
+  #root { max-width: 420px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; background: #FDF6EC; position: relative; overflow-x: hidden; }
+  textarea::placeholder { color: #C4B5A3; }
+  button { font-family: inherit; }
+  button:active { opacity: 0.85; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #E8DED0; border-radius: 4px; }
+  @keyframes fadeSlide { from { transform: translateX(-12px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes wiggle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+  @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
+  @keyframes gentleBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ============ DESIGN TOKENS ============
+const T = {
+  bg: "#FDF6EC", bgSoft: "#F7EFE3", bgCard: "#FFFFFF", bgAccent: "#FFF8F0",
+  text: "#5C4B3A", textSoft: "#A89580", textLight: "#C4B5A3",
+  border: "#E8DED0", borderSoft: "#F0E8DB",
+  pink: "#E8A0BF", blue: "#8BB8D6", green: "#9CC5A1", yellow: "#EBC88D",
+  purple: "#B8A9D4", orange: "#E4A875", red: "#D4817A",
+  shadow: "0 2px 12px rgba(92,75,58,0.08)", shadowHover: "0 4px 20px rgba(92,75,58,0.12)", radius: 16,
+};
+
+// ============ DATA ============
+const MBTI_TYPES = ["INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP","ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP"];
+const MBTI_BIAS = {
+  INTJ:{INT:3,MND:2,CRE:1},INTP:{INT:3,CRE:2,MND:1},ENTJ:{COU:3,INT:2,CHA:1},ENTP:{CRE:3,INT:2,COU:1},
+  INFJ:{MND:3,CRE:2,CHA:1},INFP:{CRE:3,MND:2,CHA:1},ENFJ:{CHA:3,MND:2,COU:1},ENFP:{CHA:3,CRE:2,COU:1},
+  ISTJ:{INT:2,VIT:2,MND:2},ISFJ:{CHA:2,MND:2,VIT:2},ESTJ:{COU:2,VIT:2,CHA:2},ESFJ:{CHA:3,VIT:2,MND:1},
+  ISTP:{INT:2,VIT:2,CRE:2},ISFP:{CRE:3,MND:2,VIT:1},ESTP:{COU:3,VIT:2,CHA:1},ESFP:{CHA:3,COU:2,CRE:1},
+};
+
+const CLASSES = [
+  { id:"scholar",name:"旅行学者",icon:"📖",color:T.blue,desc:"用知识照亮前路的旅人",baseStats:{INT:4,COU:1,VIT:1,CRE:2,CHA:2,MND:2}},
+  { id:"knight",name:"见习骑士",icon:"🛡️",color:T.red,desc:"以勇气守护信念的战士",baseStats:{INT:1,COU:4,VIT:3,CRE:1,CHA:1,MND:2}},
+  { id:"bard",name:"吟游诗人",icon:"🎵",color:T.yellow,desc:"用故事编织世界的梦想家",baseStats:{INT:2,COU:1,VIT:1,CRE:4,CHA:2,MND:2}},
+  { id:"healer",name:"森之巫女",icon:"🌿",color:T.green,desc:"倾听万物心声的治愈者",baseStats:{INT:1,COU:1,VIT:2,CRE:2,CHA:3,MND:3}},
+  { id:"tinkerer",name:"炼金工匠",icon:"⚗️",color:T.purple,desc:"在工坊中创造奇迹的巧手",baseStats:{INT:3,COU:1,VIT:2,CRE:3,CHA:1,MND:2}},
+  { id:"ranger",name:"星空旅者",icon:"🌙",color:T.orange,desc:"追逐星光的自由冒险者",baseStats:{INT:2,COU:3,VIT:2,CRE:1,CHA:2,MND:2}},
+];
+
+const SKIN_COLORS = ["#FDDCB5","#F5C7A1","#E8AD84","#D4956B","#B87652","#8D5A3C"];
+const HAIR_COLORS = ["#4A3728","#2C2C2C","#8B6F4E","#C17F3E","#D46A6A","#6B8CA6","#9B7BC4","#E8B4CB"];
+const ACCESSORIES = [
+  {id:"none",name:"无",icon:""},
+  {id:"glasses",name:"圆眼镜",icon:"👓"},
+  {id:"ribbon",name:"蝴蝶结",icon:"🎀"},
+  {id:"hat",name:"小帽子",icon:"🎩"},
+  {id:"flower",name:"小花",icon:"🌸"},
+  {id:"star",name:"星星",icon:"⭐"},
+];
+
+const ATTR_META = {
+  INT:{name:"智慧",icon:"📖",color:"#7BA0C4"},COU:{name:"勇气",icon:"🛡️",color:"#D4817A"},
+  VIT:{name:"体魄",icon:"🌱",color:"#9CC5A1"},CRE:{name:"创造",icon:"🎨",color:"#EBC88D"},
+  CHA:{name:"社交",icon:"💬",color:"#E8A0BF"},MND:{name:"心智",icon:"🌙",color:"#B8A9D4"},
+};
+
+const QUESTIONS = [
+  {q:"旅途中你最想去哪里？",opts:[
+    {text:"📚 古老的图书馆",bias:{INT:2,MND:1}},{text:"🏔️ 未知的山巅",bias:{COU:2,VIT:1}},
+    {text:"🎨 热闹的集市",bias:{CRE:2,CHA:1}},{text:"🍵 温暖的茶馆",bias:{CHA:2,MND:1}},
+  ]},
+  {q:"遇到一只受伤的小动物，你会？",opts:[
+    {text:"🔍 仔细观察伤势再行动",bias:{INT:2,MND:1}},{text:"💨 立刻冲过去帮忙",bias:{COU:2,VIT:1}},
+    {text:"🎵 轻轻唱歌安抚它",bias:{CRE:2,CHA:1}},{text:"🙏 默默祈祷并守护",bias:{MND:2,CHA:1}},
+  ]},
+  {q:"你觉得最珍贵的东西是？",opts:[
+    {text:"✨ 知识与真理",bias:{INT:3}},{text:"🔥 勇气与决心",bias:{COU:3}},
+    {text:"🌈 想象力与美",bias:{CRE:3}},{text:"🤝 人与人的羁绊",bias:{CHA:2,MND:1}},
+  ]},
+];
+
+const STORY_TEMPLATES = {
+  INT:[
+    {s:"在古老图书馆的深处",a:"发现了一本泛着微光的魔法典籍",d:"翻开书页的瞬间，文字化作星光流入脑海，新的知识在脑中缓缓成形"},
+    {s:"在学者塔的顶层研究室里",a:"破译了一段尘封已久的古代符文",d:"那些曾经晦涩的符号终于串成了完整的含义，像打开了新世界的大门"},
+    {s:"在炼金工坊的实验台前",a:"成功调配出了一瓶新的魔药配方",d:"液体在烧瓶中闪烁着淡蓝色光芒，每一次实验都让理解更深一层"},
+  ],
+  COU:[
+    {s:"在熙攘的冒险者酒馆中央",a:"站上了演说台，面对所有人的目光",d:"尽管心跳加速，但话语越来越坚定，人群中渐渐响起了掌声"},
+    {s:"在通往暗影森林的岔路口",a:"选择了那条没人走过的小径",d:"虽然前方迷雾重重，但每一步都让内心的勇气之火燃得更旺"},
+    {s:"在王城的竞技场门前",a:"鼓起勇气报名了新手选拔",d:"推开那扇沉重大门的瞬间，感觉整个世界都在为这份勇气让路"},
+  ],
+  VIT:[
+    {s:"在晨曦初现的精灵森林中",a:"沿着蜿蜒小径开始了晨间修行",d:"清新空气灌入肺腑，身体每一个细胞都在苏醒，生命力缓缓流转"},
+    {s:"在云端山脉的修炼场上",a:"完成了一套完整的基础训练",d:"汗水滴落在青石板上，但体内气息比昨天更加充沛了"},
+    {s:"在海风轻拂的海岸步道上",a:"迎着海风完成了一段漫长的行军",d:"身体里涌动的活力让人感到前所未有的畅快"},
+  ],
+  CRE:[
+    {s:"在月光洒落的画廊工坊里",a:"用魔法画笔描绘出了心中的风景",d:"颜料在画布上自由流淌，每一笔都带着灵感光芒，新作品就此诞生"},
+    {s:"在飘着花香的巫女小屋中",a:"调配了一道从未尝试过的魔法料理",d:"食材在锅中翻滚，香气弥漫整个房间，创造的喜悦比任何魔法都令人陶醉"},
+    {s:"在街角那家温馨的乐器店里",a:"弹奏了一首自己编的小曲",d:"音符在空气中跳舞，连路过的旅人都驻足聆听"},
+  ],
+  CHA:[
+    {s:"在温暖烛光映照的小酒馆里",a:"和几位旅途中认识的冒险者共进晚餐",d:"杯盏交错间分享彼此的故事，笑声让寒冷夜晚变得格外温暖"},
+    {s:"在热闹非凡的边境集市上",a:"帮助一位迷路的旅人找到了同伴",d:"看着他们重逢时的笑容，人与人的连接果然是最美妙的魔法"},
+    {s:"在公会大厅的圆桌旁",a:"和队友们一起制定了新的冒险计划",d:"每个人都贡献着想法，齐心协力的感觉让人充满力量"},
+  ],
+  MND:[
+    {s:"在古树下的冥想之泉旁",a:"闭上眼睛，聆听内心最深处的声音",d:"万物的喧嚣渐渐远去，在寂静中找到了属于自己的宁静之地"},
+    {s:"在夕阳映照的神殿回廊里",a:"翻开旅行日志，回顾这段旅程",d:"笔尖在纸上沙沙作响，每个文字都是对自我更深一层的理解"},
+    {s:"在繁星满天的山顶营地中",a:"仰望星空，思索着旅途的意义",d:"星光落入眼眸，心中的困惑渐渐化开，对明天又多了几分清晰"},
+  ],
+};
+
+const BOSSES = [
+  {name:"拖延之雾",emoji:"🌫️",desc:"连续3天记录完成一件重要的事",weakness:"智慧+体魄",reward:50,stars:2},
+  {name:"社恐幽灵",emoji:"👻",desc:"记录一次主动和不熟的人交流",weakness:"勇气+社交",reward:80,stars:3},
+  {name:"遗忘迷宫",emoji:"🌀",desc:"连续3天学习新技能并记录心得",weakness:"智慧+创造",reward:60,stars:2},
+  {name:"倦怠龙",emoji:"🐉",desc:"连续3天运动并记录感受",weakness:"体魄+心智",reward:70,stars:3},
+];
+
+const SHOP_ITEMS = [
+  {name:"灵感药水",emoji:"🧪",price:30,desc:"下次日记属性×2"},
+  {name:"时光沙漏",emoji:"⏳",price:50,desc:"可补写昨天日记"},
+  {name:"回忆水晶",emoji:"🔮",price:20,desc:"随机回顾旧日记"},
+  {name:"小花发夹",emoji:"🌺",price:60,desc:"角色装饰品"},
+  {name:"星光斗篷",emoji:"🌟",price:120,desc:"限定角色外观"},
+  {name:"彩虹围巾",emoji:"🧣",price:80,desc:"角色装饰品"},
+];
+
+// ============ LOGIC ============
+function analyzeDiary(text) {
+  const rules = [
+    {kw:["学习","上课","读书","看书","编程","代码","研究","论文","课程","知识","算法","英语","安装","教程","技术"],attr:"INT",base:1},
+    {kw:["勇气","演讲","发言","面试","挑战","克服","鼓起勇气","第一次","尝试","主动","上台","表演","脱口秀"],attr:"COU",base:2},
+    {kw:["运动","跑步","健身","游泳","爬山","骑车","瑜伽","打球","早起","锻炼","散步","公里","俯卧撑"],attr:"VIT",base:1},
+    {kw:["画画","写作","创作","设计","做饭","摄影","音乐","弹琴","手工","烘焙","拍照","水彩","唱歌","视频"],attr:"CRE",base:1},
+    {kw:["朋友","聚会","聚餐","团队","合作","帮助","约会","同事","聊天","家人","陪伴","吃饭","有意思的人"],attr:"CHA",base:1},
+    {kw:["冥想","反思","日记","思考","心态","感悟","独处","哲学","情绪","放松","正念","复盘","感恩"],attr:"MND",base:1},
+  ];
+  const results=[], matched=new Set();
+  rules.forEach(r=>{r.kw.forEach(k=>{if(text.includes(k)&&!matched.has(r.attr)){matched.add(r.attr);results.push({action:k,attr:r.attr,points:text.length>50?r.base+1:r.base});}});});
+  if(!results.length) results.push({action:"记录生活",attr:"MND",points:1});
+  return results;
+}
+
+function generateStory(classId, results, diary) {
+  const main = results.reduce((a,b)=>b.points>a.points?b:a, results[0]).attr;
+  const ts = STORY_TEMPLATES[main];
+  const t = ts[Math.floor(Math.random()*ts.length)];
+  const cls = CLASSES.find(c=>c.id===classId)||CLASSES[0];
+  let extra="";
+  if(diary.includes("朋友")||diary.includes("同事")) extra="身旁的伙伴们也一同见证了这个时刻。冒险永远不是一个人的旅程。";
+  else if(diary.includes("学")||diary.includes("课")) extra="新获得的知识在脑海中慢慢沉淀，距离成为真正的大师又近了一步。";
+  else if(diary.includes("运动")||diary.includes("跑")) extra="身体里涌动的力量似乎又强了一些，明天的修行一定会更加得心应手。";
+  return {
+    title: cls.name+"的冒险日志",
+    text: `${t.s}，这位年轻的${cls.name}${t.a}。\n\n${t.d}。\n\n${extra?extra+"\n\n":""}今日的冒险又为这段传奇增添了新的一页。夜幕降临时，${cls.name}在日志上郑重记下了今天的收获，嘴角不自觉地扬起了微笑。`
+  };
+}
+
+function getLevel(p){return Math.floor(p/10)+1;}
+function getLevelProg(p){return(p%10)/10;}
+
+// ============ PIXEL CHARACTER ============
+function PixelChar({classId,skinColor="#FDDCB5",hairColor="#4A3728",accessory="none",size=120}) {
+  const outfits={scholar:{m:"#7BA0C4",a:"#5A82A8"},knight:{m:"#D4817A",a:"#B5655E"},bard:{m:"#EBC88D",a:"#D4A85E"},healer:{m:"#9CC5A1",a:"#7DAE83"},tinkerer:{m:"#B8A9D4",a:"#9A8BBE"},ranger:{m:"#E4A875",a:"#C78F5E"}};
+  const o=outfits[classId]||outfits.scholar;
+  return React.createElement("svg",{width:size,height:size,viewBox:"0 0 16 16",style:{imageRendering:"pixelated"}},
+    React.createElement("rect",{x:4,y:2,width:8,height:3,fill:hairColor}),
+    React.createElement("rect",{x:3,y:3,width:1,height:4,fill:hairColor}),
+    React.createElement("rect",{x:12,y:3,width:1,height:4,fill:hairColor}),
+    React.createElement("rect",{x:5,y:3,width:6,height:6,fill:skinColor}),
+    React.createElement("rect",{x:4,y:4,width:1,height:4,fill:skinColor}),
+    React.createElement("rect",{x:11,y:4,width:1,height:4,fill:skinColor}),
+    React.createElement("rect",{x:4,y:2,width:8,height:2,fill:hairColor}),
+    React.createElement("rect",{x:4,y:3,width:2,height:1,fill:hairColor}),
+    React.createElement("rect",{x:10,y:3,width:2,height:1,fill:hairColor}),
+    React.createElement("rect",{x:6,y:5,width:1,height:2,fill:"#3A2E24"}),
+    React.createElement("rect",{x:9,y:5,width:1,height:2,fill:"#3A2E24"}),
+    React.createElement("rect",{x:6,y:5,width:1,height:1,fill:"#FFFFFF",opacity:0.5}),
+    React.createElement("rect",{x:9,y:5,width:1,height:1,fill:"#FFFFFF",opacity:0.5}),
+    React.createElement("rect",{x:5,y:7,width:1,height:1,fill:"#E8A0BF",opacity:0.5}),
+    React.createElement("rect",{x:10,y:7,width:1,height:1,fill:"#E8A0BF",opacity:0.5}),
+    React.createElement("rect",{x:7,y:7,width:2,height:1,fill:"#D4817A",opacity:0.6}),
+    React.createElement("rect",{x:4,y:9,width:8,height:4,fill:o.m}),
+    React.createElement("rect",{x:3,y:10,width:1,height:3,fill:o.m}),
+    React.createElement("rect",{x:12,y:10,width:1,height:3,fill:o.m}),
+    React.createElement("rect",{x:5,y:11,width:6,height:1,fill:o.a}),
+    React.createElement("rect",{x:5,y:13,width:2,height:2,fill:"#8B7B6B"}),
+    React.createElement("rect",{x:9,y:13,width:2,height:2,fill:"#8B7B6B"}),
+    React.createElement("rect",{x:4,y:15,width:3,height:1,fill:"#6B5B4B"}),
+    React.createElement("rect",{x:9,y:15,width:3,height:1,fill:"#6B5B4B"}),
+    accessory==="glasses"&&React.createElement("g",null,
+      React.createElement("rect",{x:5,y:5,width:3,height:2,fill:"none",stroke:"#6B5B4B",strokeWidth:0.4}),
+      React.createElement("rect",{x:8,y:5,width:3,height:2,fill:"none",stroke:"#6B5B4B",strokeWidth:0.4}),
+      React.createElement("rect",{x:7.5,y:5.5,width:1,height:0.4,fill:"#6B5B4B"})
+    ),
+    accessory==="ribbon"&&React.createElement("g",null,
+      React.createElement("rect",{x:10,y:2,width:2,height:1,fill:"#E8A0BF"}),
+      React.createElement("rect",{x:11,y:1,width:1,height:1,fill:"#E8A0BF"}),
+      React.createElement("rect",{x:10,y:3,width:1,height:1,fill:"#D48BA8"})
+    ),
+    accessory==="hat"&&React.createElement("g",null,
+      React.createElement("rect",{x:4,y:0,width:8,height:2,fill:"#3A2E24"}),
+      React.createElement("rect",{x:3,y:2,width:10,height:1,fill:"#3A2E24"}),
+      React.createElement("rect",{x:5,y:1,width:1,height:1,fill:"#D4817A",opacity:0.6})
+    ),
+    accessory==="flower"&&React.createElement("g",null,
+      React.createElement("rect",{x:3,y:2,width:2,height:2,fill:"#E8A0BF"}),
+      React.createElement("rect",{x:3.5,y:2.5,width:1,height:1,fill:"#EBC88D"})
+    ),
+    accessory==="star"&&React.createElement("g",null,
+      React.createElement("rect",{x:11,y:1,width:2,height:2,fill:"#EBC88D"}),
+      React.createElement("rect",{x:11.5,y:0.5,width:1,height:1,fill:"#EBC88D"}),
+      React.createElement("rect",{x:11.5,y:2.5,width:1,height:1,fill:"#EBC88D"})
+    )
+  );
+}
+
+// ============ UI HELPERS ============
+function Btn({children,onClick,color=T.pink,outline,disabled,full,small,style:sx}) {
+  const s = {
+    padding:small?"8px 16px":"12px 28px",fontSize:small?13:15,fontWeight:600,fontFamily:"inherit",
+    borderRadius:12,cursor:disabled?"default":"pointer",
+    border:outline?`2px solid ${color}`:"none",
+    background:disabled?T.border:outline?"transparent":color,
+    color:disabled?T.textSoft:outline?color:"#fff",
+    width:full?"100%":"auto",transition:"all 0.2s",opacity:disabled?0.6:1,letterSpacing:1,...sx
+  };
+  return React.createElement("button",{style:s,onClick:disabled?undefined:onClick},children);
+}
+
+function Card({children,style:sx}) {
+  return React.createElement("div",{style:{background:T.bgCard,borderRadius:T.radius,padding:16,boxShadow:T.shadow,border:`1px solid ${T.borderSoft}`,...sx}},children);
+}
+
+function AttrBar({attrKey,value}) {
+  const m=ATTR_META[attrKey];
+  return React.createElement("div",{style:{marginBottom:12}},
+    React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
+      React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.text}},m.icon," ",m.name,
+        React.createElement("span",{style:{fontSize:11,color:T.textSoft,marginLeft:6}},"Lv.",getLevel(value))
+      ),
+      React.createElement("span",{style:{fontSize:12,color:T.textSoft}},value,"pts")
+    ),
+    React.createElement("div",{style:{height:8,background:T.bgSoft,borderRadius:4,overflow:"hidden"}},
+      React.createElement("div",{style:{height:"100%",borderRadius:4,background:m.color,width:`${getLevelProg(value)*100}%`,transition:"width 1s ease"}})
+    )
+  );
+}
+
+// ============ SCREENS ============
+function WelcomeScreen({onStart}) {
+  const [show,setShow]=useState(false);
+  useEffect(()=>{setTimeout(()=>setShow(true),200);},[]);
+  return React.createElement("div",{style:{textAlign:"center",padding:"70px 24px",opacity:show?1:0,transform:show?"none":"translateY(16px)",transition:"all 0.8s"}},
+    React.createElement("div",{style:{fontSize:56,marginBottom:12,animation:"gentleBounce 2s ease-in-out infinite"}},"🏰"),
+    React.createElement("h1",{style:{fontSize:28,fontWeight:800,color:T.text,margin:"0 0 6px",letterSpacing:4}},"人生副本"),
+    React.createElement("p",{style:{color:T.textSoft,fontSize:14,margin:"0 0 8px",letterSpacing:1}},"— 异世界冒险日记 —"),
+    React.createElement("p",{style:{color:T.textLight,fontSize:12,margin:"0 0 44px"}},"记录每一天，书写你的传奇"),
+    React.createElement(Btn,{onClick:onStart,color:T.pink},"开始冒险 ✦")
+  );
+}
+
+function MBTIScreen({onNext}) {
+  const [sel,setSel]=useState(null);
+  return React.createElement("div",{style:{padding:"32px 20px"}},
+    React.createElement("div",{style:{textAlign:"center",marginBottom:24}},
+      React.createElement("p",{style:{fontSize:12,color:T.textSoft,letterSpacing:2,margin:"0 0 8px"}},"✦ 冒险者登记 ✦"),
+      React.createElement("h2",{style:{fontSize:20,fontWeight:700,color:T.text,margin:0}},"你知道自己的MBTI吗？"),
+      React.createElement("p",{style:{fontSize:12,color:T.textLight,margin:"8px 0 0"}},"帮助我们更好地了解你（可跳过）")
+    ),
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:24}},
+      MBTI_TYPES.map(m=>React.createElement("button",{key:m,onClick:()=>setSel(m===sel?null:m),style:{
+        padding:"10px 4px",fontSize:12,fontWeight:sel===m?700:500,fontFamily:"inherit",
+        background:sel===m?T.pink:T.bgCard,color:sel===m?"#fff":T.text,
+        border:`1.5px solid ${sel===m?T.pink:T.border}`,borderRadius:10,cursor:"pointer",transition:"all 0.2s"
+      }},m))
+    ),
+    React.createElement("div",{style:{display:"flex",gap:10}},
+      React.createElement(Btn,{onClick:()=>onNext(null),outline:true,color:T.textSoft,full:true},"跳过"),
+      React.createElement(Btn,{onClick:()=>onNext(sel),color:T.pink,full:true,disabled:!sel},"确认")
+    )
+  );
+}
+
+function QuizScreen({onComplete,mbtiBias}) {
+  const [step,setStep]=useState(0);
+  const [scores,setScores]=useState({INT:0,COU:0,VIT:0,CRE:0,CHA:0,MND:0,...(mbtiBias||{})});
+  const [fade,setFade]=useState(true);
+  const q=QUESTIONS[step];
+  const handle=(bias)=>{
+    const ns={...scores};Object.entries(bias).forEach(([k,v])=>{ns[k]+=v;});
+    setFade(false);
+    setTimeout(()=>{
+      if(step<QUESTIONS.length-1){setStep(step+1);setScores(ns);setFade(true);}
+      else{
+        let best=CLASSES[0],bestS=-1;
+        CLASSES.forEach(c=>{let s=0;Object.entries(c.baseStats).forEach(([k,v])=>{s+=v*(ns[k]||0);});if(s>bestS){bestS=s;best=c;}});
+        onComplete(best);
+      }
+    },300);
+  };
+  return React.createElement("div",{style:{padding:"36px 20px",opacity:fade?1:0,transition:"opacity 0.3s"}},
+    React.createElement("div",{style:{textAlign:"center",marginBottom:28}},
+      React.createElement("span",{style:{fontSize:12,color:T.textSoft}},step+1," / ",QUESTIONS.length),
+      React.createElement("div",{style:{display:"flex",gap:6,justifyContent:"center",margin:"10px 0 0"}},
+        QUESTIONS.map((_,i)=>React.createElement("div",{key:i,style:{width:48,height:4,borderRadius:2,background:i<=step?T.pink:T.border,transition:"background 0.3s"}}))
+      )
+    ),
+    React.createElement("h2",{style:{fontSize:19,fontWeight:700,color:T.text,textAlign:"center",margin:"0 0 28px",lineHeight:1.5}},q.q),
+    React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+      q.opts.map((opt,i)=>React.createElement("button",{key:i,onClick:()=>handle(opt.bias),style:{
+        padding:"16px 18px",fontSize:15,textAlign:"left",lineHeight:1.4,fontFamily:"inherit",
+        background:T.bgCard,color:T.text,border:`1.5px solid ${T.border}`,borderRadius:14,cursor:"pointer",
+        transition:"all 0.2s",boxShadow:T.shadow
+      }},opt.text))
+    )
+  );
+}
+
+function CustomizeScreen({classInfo,onConfirm}) {
+  const [skin,setSkin]=useState(0);
+  const [hair,setHair]=useState(0);
+  const [acc,setAcc]=useState("none");
+  return React.createElement("div",{style:{padding:"28px 20px"}},
+    React.createElement("div",{style:{textAlign:"center",marginBottom:20}},
+      React.createElement("p",{style:{fontSize:12,color:T.textSoft,letterSpacing:2,margin:"0 0 8px"}},"✦ 你的冒险者身份 ✦"),
+      React.createElement("h2",{style:{fontSize:22,fontWeight:800,color:T.text,margin:"0 0 4px"}},classInfo.name),
+      React.createElement("p",{style:{fontSize:13,color:T.textSoft}},classInfo.desc)
+    ),
+    React.createElement("div",{style:{textAlign:"center",margin:"16px 0 20px",padding:20,background:`linear-gradient(180deg, ${T.bgSoft}, ${T.bgAccent})`,borderRadius:20}},
+      React.createElement(PixelChar,{classId:classInfo.id,skinColor:SKIN_COLORS[skin],hairColor:HAIR_COLORS[hair],accessory:acc,size:140})
+    ),
+    React.createElement(Card,{style:{marginBottom:12}},
+      React.createElement("div",{style:{fontSize:13,fontWeight:600,color:T.text,marginBottom:10}},"🎨 肤色"),
+      React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        SKIN_COLORS.map((c,i)=>React.createElement("button",{key:i,onClick:()=>setSkin(i),style:{
+          width:32,height:32,borderRadius:"50%",background:c,cursor:"pointer",
+          border:skin===i?`3px solid ${T.pink}`:`2px solid ${T.border}`,
+          boxShadow:skin===i?`0 0 0 2px ${T.bgCard}, 0 0 0 4px ${T.pink}`:"none",transition:"all 0.2s"
+        }}))
+      )
+    ),
+    React.createElement(Card,{style:{marginBottom:12}},
+      React.createElement("div",{style:{fontSize:13,fontWeight:600,color:T.text,marginBottom:10}},"💇 发色"),
+      React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        HAIR_COLORS.map((c,i)=>React.createElement("button",{key:i,onClick:()=>setHair(i),style:{
+          width:32,height:32,borderRadius:"50%",background:c,cursor:"pointer",
+          border:hair===i?`3px solid ${T.pink}`:`2px solid ${T.border}`,
+          boxShadow:hair===i?`0 0 0 2px ${T.bgCard}, 0 0 0 4px ${T.pink}`:"none",transition:"all 0.2s"
+        }}))
+      )
+    ),
+    React.createElement(Card,{style:{marginBottom:20}},
+      React.createElement("div",{style:{fontSize:13,fontWeight:600,color:T.text,marginBottom:10}},"✨ 配饰"),
+      React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        ACCESSORIES.map(a=>React.createElement("button",{key:a.id,onClick:()=>setAcc(a.id),style:{
+          padding:"6px 14px",fontSize:12,fontWeight:acc===a.id?700:500,fontFamily:"inherit",
+          background:acc===a.id?T.pink:T.bgSoft,color:acc===a.id?"#fff":T.text,
+          border:`1.5px solid ${acc===a.id?T.pink:T.border}`,borderRadius:20,cursor:"pointer",transition:"all 0.2s"
+        }},a.icon," ",a.name))
+      )
+    ),
+    React.createElement(Card,{style:{marginBottom:20}},
+      React.createElement("div",{style:{fontSize:13,fontWeight:600,color:T.text,marginBottom:10}},"📊 初始属性"),
+      React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},
+        Object.entries(classInfo.baseStats).map(([k,v])=>React.createElement("span",{key:k,style:{
+          padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:600,
+          background:`${ATTR_META[k].color}22`,color:ATTR_META[k].color,border:`1px solid ${ATTR_META[k].color}33`
+        }},ATTR_META[k].icon," ",ATTR_META[k].name," ",v))
+      )
+    ),
+    React.createElement(Btn,{onClick:()=>onConfirm({skin:SKIN_COLORS[skin],hair:HAIR_COLORS[hair],accessory:acc}),color:T.pink,full:true},"出发冒险！✦")
+  );
+}
+
+function MainScreen({character,look,stats,setStats,coins,setCoins,streak,setStreak,diaries,setDiaries}) {
+  const [tab,setTab]=useState("diary");
+  const [text,setText]=useState("");
+  const [analyzing,setAnalyzing]=useState(false);
+  const [result,setResult]=useState(null);
+  const [story,setStory]=useState(null);
+  const [activeBoss,setActiveBoss]=useState(null);
+  const [bossDefeated,setBossDefeated]=useState(false);
+  const [purchased,setPurchased]=useState(new Set());
+  const [expanded,setExpanded]=useState(true);
+  const ref=useRef(null);
+  const totalLv=Object.values(stats).reduce((s,v)=>s+getLevel(v),0);
+
+  const submit=()=>{
+    if(!text.trim()||text.length<2)return;
+    setAnalyzing(true);
+    setTimeout(()=>{
+      const res=analyzeDiary(text);
+      const ns={...stats};res.forEach(r=>{ns[r.attr]=(ns[r.attr]||0)+r.points;});
+      const st=generateStory(character.id,res,text);
+      setResult({results:res,exp:res.reduce((s,r)=>s+r.points,0)*5});
+      setStory(st);setStats(ns);
+      setCoins(c=>c+5+(streak>=7?15:streak>=3?10:0));
+      setStreak(s=>s+1);
+      setDiaries(d=>[...d,{text,date:new Date().toLocaleDateString("zh-CN"),results:res,story:st}]);
+      setAnalyzing(false);setText("");setExpanded(true);
+    },1800);
+  };
+
+  const quickTags=["今天学了新东西","去运动了","和朋友聚了","做了创作","鼓起勇气做了事","安静地反思了"];
+  const tabs=[{key:"diary",label:"📝 日记",c:T.pink},{key:"stats",label:"📊 属性",c:T.blue},{key:"boss",label:"🐉 Boss",c:T.red},{key:"shop",label:"🛒 商店",c:T.yellow}];
+
+  return React.createElement("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column"}},
+    // Header
+    React.createElement("div",{style:{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${T.border}`,background:T.bgCard}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.bgSoft,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border:`1.5px solid ${T.border}`}},
+          React.createElement(PixelChar,{classId:character.id,skinColor:look.skin,hairColor:look.hair,accessory:look.accessory,size:40})
+        ),
+        React.createElement("div",null,
+          React.createElement("div",{style:{fontSize:14,fontWeight:700,color:T.text}},character.name),
+          React.createElement("div",{style:{fontSize:11,color:T.textSoft}},"Lv.",totalLv," · 🔥",streak,"天")
+        )
+      ),
+      React.createElement("span",{style:{color:T.yellow,fontSize:14,fontWeight:700,background:`${T.yellow}18`,padding:"4px 12px",borderRadius:20}},"🪙 ",coins)
+    ),
+    // Tabs
+    React.createElement("div",{style:{display:"flex",background:T.bgCard,borderBottom:`1px solid ${T.border}`}},
+      tabs.map(t=>React.createElement("button",{key:t.key,onClick:()=>{setTab(t.key);if(t.key!=="diary"){setResult(null);setStory(null);}},style:{
+        flex:1,padding:"10px 0",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+        background:"none",border:"none",borderBottom:tab===t.key?`2.5px solid ${t.c}`:"2.5px solid transparent",
+        color:tab===t.key?T.text:T.textLight,transition:"all 0.2s"
+      }},t.label))
+    ),
+    // Content
+    React.createElement("div",{style:{flex:1,padding:16,overflowY:"auto"}},
+
+      // DIARY
+      tab==="diary"&&!result&&React.createElement("div",null,
+        React.createElement("h3",{style:{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 4px"}},"今天的冒险日志"),
+        React.createElement("p",{style:{fontSize:12,color:T.textSoft,margin:"0 0 14px"}},"写下今天做了什么，异世界的故事即将展开..."),
+        React.createElement("textarea",{ref,value:text,onChange:e=>setText(e.target.value),placeholder:"今天我...",
+          style:{width:"100%",minHeight:120,padding:14,fontSize:15,lineHeight:1.7,background:T.bgSoft,color:T.text,border:`1.5px solid ${T.border}`,borderRadius:14,resize:"vertical",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}
+        }),
+        React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6,margin:"10px 0 14px"}},
+          quickTags.map((tag,i)=>React.createElement("button",{key:i,onClick:()=>{setText(p=>(p?p+"，":"")+tag);ref.current&&ref.current.focus();},
+            style:{padding:"5px 10px",fontSize:11,background:T.bgCard,color:T.textSoft,border:`1px solid ${T.border}`,borderRadius:16,cursor:"pointer",fontFamily:"inherit"}
+          },"+ ",tag))
+        ),
+        React.createElement(Btn,{onClick:submit,disabled:analyzing||!text.trim(),color:T.pink,full:true},
+          analyzing?"✨ 正在编写异世界日志...":"提交日志 ✦"
+        ),
+        diaries.length>0&&React.createElement("div",{style:{marginTop:24}},
+          React.createElement("h4",{style:{fontSize:13,color:T.textSoft,margin:"0 0 10px"}},"📜 往期冒险"),
+          [...diaries].reverse().slice(0,5).map((d,i)=>React.createElement(Card,{key:i,style:{marginBottom:8}},
+            React.createElement("div",{style:{fontSize:11,color:T.textLight,marginBottom:4}},d.date),
+            React.createElement("div",{style:{fontSize:13,color:T.text,lineHeight:1.5,marginBottom:6}},d.text.length>60?d.text.slice(0,60)+"...":d.text),
+            React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+              d.results.map((r,j)=>React.createElement("span",{key:j,style:{fontSize:11,color:ATTR_META[r.attr].color,fontWeight:600}},ATTR_META[r.attr].icon,"+",r.points))
+            )
+          ))
+        )
+      ),
+
+      // RESULT + STORY
+      tab==="diary"&&result&&React.createElement("div",null,
+        story&&React.createElement(Card,{style:{marginBottom:16,background:`linear-gradient(135deg, ${T.bgAccent}, #FFF5F8)`,border:`1.5px solid ${T.pink}33`}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+            React.createElement("span",{style:{fontSize:18}},"📖"),
+            React.createElement("span",{style:{fontSize:14,fontWeight:700,color:T.text}},story.title)
+          ),
+          React.createElement("div",{style:{fontSize:13,color:T.text,lineHeight:2,whiteSpace:"pre-line",maxHeight:expanded?400:100,overflow:"hidden",transition:"max-height 0.3s"}},story.text),
+          React.createElement("button",{onClick:()=>setExpanded(!expanded),style:{fontSize:12,color:T.pink,background:"none",border:"none",cursor:"pointer",marginTop:8,fontFamily:"inherit",fontWeight:600}},
+            expanded?"收起 ▲":"展开全文 ▼"
+          )
+        ),
+        React.createElement(Card,{style:{marginBottom:16}},
+          React.createElement("div",{style:{fontSize:14,fontWeight:700,color:T.text,marginBottom:12,textAlign:"center"}},"✦ 今日成长 ✦"),
+          React.createElement("div",{style:{textAlign:"center",margin:"0 0 16px"}},
+            React.createElement(PixelChar,{classId:character.id,skinColor:look.skin,hairColor:look.hair,accessory:look.accessory,size:100})
+          ),
+          result.results.map((r,i)=>React.createElement("div",{key:i,style:{
+            display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
+            background:`${ATTR_META[r.attr].color}12`,borderRadius:10,marginBottom:6,
+            border:`1px solid ${ATTR_META[r.attr].color}22`,animation:`fadeSlide 0.5s ease ${i*0.15}s both`
+          }},
+            React.createElement("span",{style:{fontSize:18}},ATTR_META[r.attr].icon),
+            React.createElement("span",{style:{flex:1,fontSize:13,color:T.text}},ATTR_META[r.attr].name," · ",r.action),
+            React.createElement("span",{style:{fontSize:16,fontWeight:800,color:ATTR_META[r.attr].color}},"+",r.points)
+          )),
+          React.createElement("div",{style:{display:"flex",justifyContent:"center",gap:16,marginTop:14,paddingTop:12,borderTop:`1px solid ${T.border}`}},
+            React.createElement("span",{style:{fontSize:13,color:T.yellow,fontWeight:600}},"🪙 +5"),
+            React.createElement("span",{style:{fontSize:13,color:T.blue,fontWeight:600}},"⚡ +",result.exp," EXP")
+          )
+        ),
+        React.createElement(Btn,{onClick:()=>{setResult(null);setStory(null);},color:T.pink,full:true},"继续冒险 →")
+      ),
+
+      // STATS
+      tab==="stats"&&React.createElement("div",null,
+        React.createElement("div",{style:{textAlign:"center",marginBottom:20,padding:20,background:T.bgSoft,borderRadius:20}},
+          React.createElement(PixelChar,{classId:character.id,skinColor:look.skin,hairColor:look.hair,accessory:look.accessory,size:110}),
+          React.createElement("div",{style:{fontSize:18,fontWeight:700,color:T.text,marginTop:10}},character.name),
+          React.createElement("div",{style:{fontSize:12,color:T.textSoft}},'"',character.desc,'"')
+        ),
+        React.createElement(Card,{style:{marginBottom:14}},
+          Object.entries(stats).map(([k,v])=>React.createElement(AttrBar,{key:k,attrKey:k,value:v}))
+        ),
+        React.createElement(Card,null,
+          React.createElement("div",{style:{fontSize:14,fontWeight:600,color:T.text,marginBottom:10}},"📊 统计"),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+            [{l:"总等级",v:totalLv},{l:"日记数",v:diaries.length},{l:"连续天数",v:"🔥 "+streak},{l:"金币",v:"🪙 "+coins}].map((s,i)=>
+              React.createElement("div",{key:i},
+                React.createElement("div",{style:{fontSize:11,color:T.textSoft}},s.l),
+                React.createElement("div",{style:{fontSize:20,fontWeight:800,color:T.text}},s.v)
+              )
+            )
+          )
+        )
+      ),
+
+      // BOSS
+      tab==="boss"&&React.createElement("div",null,
+        activeBoss&&!bossDefeated&&React.createElement("div",{style:{textAlign:"center",padding:"20px 0"}},
+          React.createElement("div",{style:{fontSize:52,marginBottom:10,animation:"wiggle 1s ease-in-out infinite"}},activeBoss.emoji),
+          React.createElement("h3",{style:{fontSize:20,fontWeight:800,color:T.red,margin:"0 0 6px"}},activeBoss.name),
+          React.createElement("p",{style:{color:T.textSoft,fontSize:13,margin:"0 0 14px"}},"挑战进行中..."),
+          React.createElement("div",{style:{height:12,background:T.bgSoft,borderRadius:6,margin:"0 0 10px",overflow:"hidden",border:`1px solid ${T.border}`}},
+            React.createElement("div",{style:{height:"100%",width:"60%",background:`linear-gradient(90deg, ${T.red}, ${T.orange})`,borderRadius:6}})
+          ),
+          React.createElement("p",{style:{fontSize:13,color:T.text,margin:"0 0 20px",lineHeight:1.6}},activeBoss.desc),
+          React.createElement(Btn,{onClick:()=>{setBossDefeated(true);setCoins(c=>c+activeBoss.reward);},color:T.red},"⚔️ 完成挑战！")
+        ),
+        activeBoss&&bossDefeated&&React.createElement("div",{style:{textAlign:"center",padding:"20px 0"}},
+          React.createElement("div",{style:{fontSize:52,marginBottom:10,opacity:0.3}},activeBoss.emoji),
+          React.createElement("h3",{style:{fontSize:20,fontWeight:800,color:T.green,margin:"0 0 8px"}},"🎉 击败了 ",activeBoss.name,"！"),
+          React.createElement("p",{style:{color:T.yellow,fontSize:16,fontWeight:700,margin:"0 0 24px"}},"🪙 +",activeBoss.reward),
+          React.createElement(Btn,{onClick:()=>{setActiveBoss(null);setBossDefeated(false);},outline:true,color:T.textSoft},"返回")
+        ),
+        !activeBoss&&React.createElement(React.Fragment,null,
+          React.createElement("h3",{style:{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 4px"}},"🐉 Boss挑战"),
+          React.createElement("p",{style:{fontSize:12,color:T.textSoft,margin:"0 0 14px"}},"选择挑战，击败Boss获得奖励"),
+          BOSSES.map((b,i)=>React.createElement(Card,{key:i,style:{marginBottom:10}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:8}},
+              React.createElement("span",{style:{fontSize:32}},b.emoji),
+              React.createElement("div",{style:{flex:1}},
+                React.createElement("div",{style:{fontSize:14,fontWeight:700,color:T.text}},b.name),
+                React.createElement("div",{style:{fontSize:11,color:T.textSoft}},"弱点: ",b.weakness," · ","★".repeat(b.stars),"☆".repeat(4-b.stars))
+              ),
+              React.createElement("span",{style:{color:T.yellow,fontSize:12,fontWeight:700}},"🪙",b.reward)
+            ),
+            React.createElement("p",{style:{fontSize:12,color:T.textSoft,margin:"0 0 10px",lineHeight:1.5}},b.desc),
+            React.createElement(Btn,{onClick:()=>setActiveBoss(b),color:T.red,full:true,small:true},"⚔️ 接受挑战")
+          ))
+        )
+      ),
+
+      // SHOP
+      tab==="shop"&&React.createElement("div",null,
+        React.createElement("h3",{style:{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 4px"}},"🛒 冒险商店"),
+        React.createElement("p",{style:{fontSize:12,color:T.textSoft,margin:"0 0 14px"}},"你有 ",React.createElement("span",{style:{color:T.yellow,fontWeight:700}},"🪙 ",coins)),
+        SHOP_ITEMS.map((item,i)=>{
+          const can=coins>=item.price&&!purchased.has(i);
+          return React.createElement(Card,{key:i,style:{display:"flex",alignItems:"center",gap:12,marginBottom:8}},
+            React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.bgSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}},item.emoji),
+            React.createElement("div",{style:{flex:1,minWidth:0}},
+              React.createElement("div",{style:{fontSize:13,fontWeight:600,color:purchased.has(i)?T.textLight:T.text}},item.name,purchased.has(i)?" ✓":""),
+              React.createElement("div",{style:{fontSize:11,color:T.textSoft}},item.desc)
+            ),
+            React.createElement("button",{onClick:()=>{if(can){setCoins(c=>c-item.price);setPurchased(p=>new Set([...p,i]));}},disabled:!can,
+              style:{padding:"5px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",
+                background:can?`${T.yellow}22`:T.bgSoft,color:can?T.yellow:T.textLight,
+                border:`1px solid ${can?`${T.yellow}44`:T.border}`,borderRadius:8,cursor:can?"pointer":"default",whiteSpace:"nowrap"
+              }},"🪙",item.price)
+          );
+        })
+      )
+    )
+  );
+}
+
+// ============ APP ============
+function App() {
+  const [screen,setScreen]=useState("welcome");
+  const [mbti,setMbti]=useState(null);
+  const [character,setCharacter]=useState(null);
+  const [look,setLook]=useState({skin:SKIN_COLORS[0],hair:HAIR_COLORS[0],accessory:"none"});
+  const [stats,setStats]=useState({});
+  const [coins,setCoins]=useState(0);
+  const [streak,setStreak]=useState(0);
+  const [diaries,setDiaries]=useState([]);
+
+  return React.createElement("div",null,
+    screen==="welcome"&&React.createElement(WelcomeScreen,{onStart:()=>setScreen("mbti")}),
+    screen==="mbti"&&React.createElement(MBTIScreen,{onNext:m=>{setMbti(m);setScreen("quiz");}}),
+    screen==="quiz"&&React.createElement(QuizScreen,{mbtiBias:mbti?MBTI_BIAS[mbti]:null,onComplete:cls=>{setCharacter(cls);setStats({...cls.baseStats});setScreen("customize");}}),
+    screen==="customize"&&character&&React.createElement(CustomizeScreen,{classInfo:character,onConfirm:lk=>{setLook(lk);setScreen("main");}}),
+    screen==="main"&&character&&React.createElement(MainScreen,{character,look,stats,setStats,coins,setCoins,streak,setStreak,diaries,setDiaries})
+  );
+}
+
+ReactDOM.render(React.createElement(App), document.getElementById("root"));
+</script>
+</body>
+</html>
